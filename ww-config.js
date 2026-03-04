@@ -1,27 +1,65 @@
 export default {
   editor: {
-    label: 'Entrustia Portal Cards',
-    icon: 'grid',
+    label: 'Audit Log Cards',
+    icon: 'list',
   },
   properties: {
     data: {
-      label: { en: 'Portal Data' },
+      label: { en: 'Audit Log Data' },
       type: 'Array',
       section: 'settings',
       bindable: true,
       defaultValue: [],
       options: {
-        expandable: false,
+        expandable: true,
+        getItemLabel(item) {
+          return item.action || item.id || 'Log Entry';
+        },
         item: {
           type: 'Object',
-          defaultValue: {},
-        },
+          defaultValue: {
+            id: 1,
+            created_at: '',
+            tenant_id: 1,
+            user_id: 1,
+            action: '',
+            target_type: '',
+            target_id: 1,
+            meta: null
+          },
+          options: {
+            item: {
+              id: { label: { en: 'ID' }, type: 'Number' },
+              created_at: { label: { en: 'Created At' }, type: 'Text' },
+              tenant_id: { label: { en: 'Tenant ID' }, type: 'Number' },
+              user_id: { label: { en: 'User ID' }, type: 'Number' },
+              action: { label: { en: 'Action' }, type: 'Text' },
+              target_type: { label: { en: 'Target Type' }, type: 'Text' },
+              target_id: { label: { en: 'Target ID' }, type: 'Number' },
+              meta: { label: { en: 'Meta' }, type: 'Text' }
+            }
+          }
+        }
       },
       /* wwEditor:start */
       bindingValidation: {
         type: 'array',
-        tooltip: 'Bind to the upload_portal collection. Each item must include: id, name, is_enabled, allowed_mime_patterns, max_bytes, instructions, expires_at, captcha_required, folder_id.',
+        tooltip: 'Array of audit log objects from Xano'
       },
+      /* wwEditor:end */
+    },
+    pageSize: {
+      label: { en: 'Page Size' },
+      type: 'Number',
+      section: 'settings',
+      defaultValue: 25,
+      bindable: true,
+      /* wwEditor:start */
+      bindingValidation: {
+        type: 'number',
+        tooltip: 'Number of records to show per page. Default: 25'
+      },
+      propertyHelp: 'How many cards to display per page',
       /* wwEditor:end */
     },
     dataIdFormula: {
@@ -39,7 +77,7 @@ export default {
         !Array.isArray(content.data) || !content.data.length || !boundProps.data,
     },
     dataNameFormula: {
-      label: { en: 'Name Field' },
+      label: { en: 'Action Field' },
       type: 'Formula',
       section: 'settings',
       options: content => ({
@@ -47,13 +85,13 @@ export default {
       }),
       defaultValue: {
         type: 'f',
-        code: "context.mapping?.['name']",
+        code: "context.mapping?.['action']",
       },
       hidden: (content, sidepanelContent, boundProps) =>
         !Array.isArray(content.data) || !content.data.length || !boundProps.data,
     },
-    dataIsEnabledFormula: {
-      label: { en: 'Is Enabled Field' },
+    dataActionFormula: {
+      label: { en: 'Action Filter Field' },
       type: 'Formula',
       section: 'settings',
       options: content => ({
@@ -61,7 +99,7 @@ export default {
       }),
       defaultValue: {
         type: 'f',
-        code: "context.mapping?.['is_enabled']",
+        code: "context.mapping?.['action']",
       },
       hidden: (content, sidepanelContent, boundProps) =>
         !Array.isArray(content.data) || !content.data.length || !boundProps.data,
@@ -69,19 +107,15 @@ export default {
   },
   triggerEvents: [
     {
-      name: 'open-click',
-      label: { en: 'On Open click' },
-      event: { row: null },
+      name: 'row-click',
+      label: { en: 'On row click' },
+      event: { row: {} },
+      default: true,
     },
     {
-      name: 'edit-click',
-      label: { en: 'On Edit click' },
-      event: { row: null },
-    },
-    {
-      name: 'name-click',
-      label: { en: 'On Page Name click' },
-      event: { row: null },
+      name: 'page-change',
+      label: { en: 'On page change' },
+      event: { page: 1, pageSize: 25, offset: 0 },
     },
   ],
 };
