@@ -15,17 +15,17 @@
           type="text"
           placeholder="Search..."
           :value="searchText"
-          @input="searchText = $event.target.value"
+          @input="onSearchInput($event.target.value)"
         />
-        <button v-if="searchText" class="alc-clear-btn" @click="searchText = ''">&#x2715;</button>
+        <button v-if="searchText" class="alc-clear-btn" @click="onSearchInput('')">&#x2715;</button>
       </div>
 
       <div class="alc-select-wrap">
-        <select class="alc-select" :value="actionFilter" @change="actionFilter = $event.target.value">
+        <select class="alc-select" :value="actionFilter" @change="onActionChange($event.target.value)">
           <option value="">All Actions</option>
           <option v-for="action in uniqueActions" :key="action" :value="action">{{ action }}</option>
         </select>
-        <button v-if="actionFilter" class="alc-clear-btn alc-clear-select" @click="actionFilter = ''">&#x2715;</button>
+        <button v-if="actionFilter" class="alc-clear-btn alc-clear-select" @click="onActionChange('')">&#x2715;</button>
       </div>
 
       <button class="alc-reset-link" @click="resetFilters">Reset</button>
@@ -33,7 +33,7 @@
 
     <!-- Cards -->
     <div
-      v-for="item in processedItems"
+      v-for="item in pagedItems"
       :key="item.id"
       class="alc-card"
       @click="handleRowClick(item)"
@@ -56,8 +56,54 @@
       </div>
     </div>
 
-    <div v-if="processedItems.length === 0" class="alc-empty">
+    <div v-if="pagedItems.length === 0" class="alc-empty">
       No results found.
+    </div>
+
+    <!-- Pagination Bar -->
+    <div v-if="totalPages > 1" class="alc-pagination">
+      <button
+        class="alc-page-btn"
+        :class="{ 'alc-page-btn--disabled': currentPage === 1 }"
+        :disabled="currentPage === 1"
+        @click="goToPage(1)"
+        title="First page"
+      >&#10094;&#10094;</button>
+
+      <button
+        class="alc-page-btn"
+        :class="{ 'alc-page-btn--disabled': currentPage === 1 }"
+        :disabled="currentPage === 1"
+        @click="goToPage(currentPage - 1)"
+        title="Previous page"
+      >&#10094;</button>
+
+      <span class="alc-page-info">
+        Page {{ currentPage }} of {{ totalPages }}
+      </span>
+
+      <button
+        class="alc-page-btn"
+        :class="{ 'alc-page-btn--disabled': currentPage === totalPages }"
+        :disabled="currentPage === totalPages"
+        @click="goToPage(currentPage + 1)"
+        title="Next page"
+      >&#10095;</button>
+
+      <button
+        class="alc-page-btn"
+        :class="{ 'alc-page-btn--disabled': currentPage === totalPages }"
+        :disabled="currentPage === totalPages"
+        @click="goToPage(totalPages)"
+        title="Last page"
+      >&#10095;&#10095;</button>
+    </div>
+
+    <!-- Record count -->
+    <div class="alc-count">
+      {{ filteredItems.length === allItems.length
+        ? allItems.length + ' records'
+        : filteredItems.length + ' of ' + allItems.length + ' records' }}
     </div>
 
   </div>
@@ -103,6 +149,20 @@ export default {
       defaultValue: 0,
     });
 
+    const { value: currentPageVar, setValue: setCurrentPageVar } = wwLib.wwVariable.useComponentVariable({
+      uid: props.uid,
+      name: 'currentPage',
+      type: 'number',
+      defaultValue: 1,
+    });
+
+    const { value: totalPagesVar, setValue: setTotalPagesVar } = wwLib.wwVariable.useComponentVariable({
+      uid: props.uid,
+      name: 'totalPages',
+      type: 'number',
+      defaultValue: 1,
+    });
+
     // Hover / active state refs (required pattern)
     const hoverState = ref({});
     const activeState = ref({});
@@ -130,13 +190,26 @@ export default {
       };
     };
 
-    // Filter state
+    // Filter + pagination state
     const searchText = ref('');
     const actionFilter = ref('');
+    const currentPage = ref(1);
+
+    // Reset page to 1 when filters change
+    const onSearchInput = (val) => {
+      searchText.value = val;
+      currentPage.value = 1;
+    };
+
+    const onActionChange = (val) => {
+      actionFilter.value = val;
+      currentPage.value = 1;
+    };
 
     const resetFilters = () => {
       searchText.value = '';
       actionFilter.value = '';
+      currentPage.value = 1;
     };
 
     // Format date helper
@@ -152,7 +225,7 @@ export default {
       return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min;
     };
 
-    // All items (resolved)
+    // All items resolved
     const allItems = computed(() => {
       const items = props.content && props.content.data ? props.content.data : [];
       if (!Array.isArray(items)) return [];
@@ -194,13 +267,13 @@ export default {
       return result;
     });
 
-    // Filtered items
-    const processedItems = computed(() => {
+    // Filtered (all pages)
+    const filteredItems = computed(() => {
       const items = allItems.value;
       const search = (searchText.value || '').toLowerCase();
       const actionVal = actionFilter.value || '';
 
-      const filtered = items.filter((item) => {
+      return items.filter((item) => {
         const matchSearch = !search ||
           (item.formattedDate || '').toLowerCase().indexOf(search) !== -1 ||
           (item.user_id + '').toLowerCase().indexOf(search) !== -1 ||
@@ -211,17 +284,71 @@ export default {
 
         return matchSearch && matchAction;
       });
-
-      return filtered;
     });
+
+    // Pagination derived values
+    const resolvedPageSize = computed(() => {
+      const ps = props.content && props.content.pageSize ? parseInt(props.content.pageSize, 10) : 25;
+      return ps > 0 ? ps : 25;
+    });
+
+    const totalPages = computed(() => {
+      const total = filteredItems.value.length;
+      if (total === 0) return 1;
+      return Math.ceil(total / resolvedPageSize.value);
+    });
+
+    // Current page clamped to valid range
+    const safePage = computed(() => {
+      const tp = totalPages.value;
+      const cp = currentPage.value;
+      if (cp < 1) return 1;
+      if (cp > tp) return tp;
+      return cp;
+    });
+
+    // Slice for current page
+    const pagedItems = computed(() => {
+      const start = (safePage.value - 1) * resolvedPageSize.value;
+      const end = start + resolvedPageSize.value;
+      return filteredItems.value.slice(start, end);
+    });
+
+    const goToPage = (page) => {
+      const tp = totalPages.value;
+      const clamped = page < 1 ? 1 : (page > tp ? tp : page);
+      currentPage.value = clamped;
+
+      const offset = (clamped - 1) * resolvedPageSize.value;
+      emit('trigger-event', {
+        name: 'page-change',
+        event: {
+          page: clamped,
+          pageSize: resolvedPageSize.value,
+          offset: offset,
+        },
+      });
+    };
 
     // Sync internal variables
     watch(allItems, (val) => {
       setItemCount(val.length);
     }, { immediate: true });
 
-    watch(processedItems, (val) => {
+    watch(filteredItems, (val) => {
       setFilteredCount(val.length);
+    }, { immediate: true });
+
+    watch(safePage, (val) => {
+      setCurrentPageVar(val);
+    }, { immediate: true });
+
+    watch(totalPages, (val) => {
+      setTotalPagesVar(val);
+      // If current page is now out of range, clamp it
+      if (currentPage.value > val) {
+        currentPage.value = val > 0 ? val : 1;
+      }
     }, { immediate: true });
 
     const handleRowClick = (item) => {
@@ -237,8 +364,15 @@ export default {
       searchText,
       actionFilter,
       uniqueActions,
-      processedItems,
+      allItems,
+      filteredItems,
+      pagedItems,
+      currentPage: safePage,
+      totalPages,
       resetFilters,
+      onSearchInput,
+      onActionChange,
+      goToPage,
       handleRowClick,
       setHover,
       setActive,
@@ -264,7 +398,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 0 0 0;
   margin-bottom: 10px;
   flex-wrap: nowrap;
 }
@@ -413,5 +546,53 @@ export default {
   color: #9ca3af;
   text-align: center;
   padding: 24px 0;
+}
+
+/* Pagination */
+.alc-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.alc-page-btn {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #374151;
+  line-height: 1;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.alc-page-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.alc-page-btn--disabled,
+.alc-page-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.alc-page-info {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* Record count */
+.alc-count {
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+  padding-bottom: 4px;
 }
 </style>
