@@ -1,0 +1,12 @@
+{
+  "name": "entrustia-portal-cards",
+  "version": "1.0.0",
+  "description": "Mobile card component for Entrustia Public Pages (upload_portal)",
+  "scripts": {
+    "build": "weweb build",
+    "serve": "weweb serve"
+  },
+  "devDependencies": {
+    "@weweb/cli": "latest"
+  }
+}
