@@ -50,7 +50,7 @@
       </div>
       <div class="alc-row">
         <span class="alc-label">Target</span>
-        <span class="alc-value">{{ item.target_type }}</span>
+        <span class="alc-value">{{ item.targetDisplay }}</span>
       </div>
     </div>
 
@@ -225,6 +225,33 @@ export default {
       return match.email || (userId + '');
     };
 
+    const getTargetDisplay = (meta) => {
+      if (meta === null || meta === undefined) return '';
+      if (typeof meta !== 'object' || Array.isArray(meta)) return '';
+      if (typeof meta.from === 'string' && typeof meta.to === 'string') return meta.from + ' > ' + meta.to;
+      if (Array.isArray(meta.to)) return meta.to.join(', ');
+      if (Array.isArray(meta.recipients)) return meta.recipients.join(', ');
+      if (Array.isArray(meta.updated_fields)) return meta.updated_fields.join(', ');
+      if (Array.isArray(meta.changed)) return meta.changed.filter((v) => v !== null && v !== undefined).join(' > ');
+      if (meta.updated && typeof meta.updated === 'object' && !Array.isArray(meta.updated) && meta.updated.name) return meta.updated.name + '';
+      if (typeof meta.company_logo_url === 'string') return meta.company_logo_url.split('/').pop().split('..')[0];
+      if (typeof meta.is_enabled === 'boolean') return meta.is_enabled ? 'Enabled' : 'Disabled';
+      const pKeys = ['brand_name', 'name', 'filename', 'uploader_name', 'email', 'uploader_email', 'portal_slug', 'slug', 'canonical_url'];
+      for (let i = 0; i < pKeys.length; i++) {
+        const v = meta[pKeys[i]];
+        if (v !== null && v !== undefined) {
+          if (typeof v === 'string' && (v.indexOf('http://') === 0 || v.indexOf('https://') === 0)) return '';
+          return v + '';
+        }
+      }
+      const allKeys = Object.keys(meta);
+      if (allKeys.length > 0) {
+        const first = meta[allKeys[0]];
+        if (typeof first === 'string' && first.indexOf('http://') !== 0 && first.indexOf('https://') !== 0) return first;
+      }
+      return '';
+    };
+
     const formatDate = (ts) => {
       if (!ts) return '';
       const d = new Date(ts);
@@ -255,6 +282,7 @@ export default {
           action: rawAction,
           actionLabel: getActionLabel(rawAction),
           target_type: item.target_type || '',
+          targetDisplay: getTargetDisplay(item.meta != null ? item.meta : null),
           meta: item.meta || null,
           _raw: item,
         };
@@ -286,6 +314,7 @@ export default {
           (item.userDisplay || '').toLowerCase().indexOf(search) !== -1 ||
           (item.actionLabel || '').toLowerCase().indexOf(search) !== -1 ||
           (item.action || '').toLowerCase().indexOf(search) !== -1 ||
+          (item.targetDisplay || '').toLowerCase().indexOf(search) !== -1 ||
           (item.target_type || '').toLowerCase().indexOf(search) !== -1;
         const matchAction = !actionVal || item.action === actionVal;
         return matchSearch && matchAction;
