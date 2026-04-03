@@ -1,7 +1,6 @@
 <template>
   <div class="alc-wrapper">
 
-    <!-- Filter Bar -->
     <div class="alc-filter-bar">
       <div class="alc-search-wrap">
         <span class="alc-search-icon">
@@ -31,7 +30,6 @@
       <button class="alc-reset-link" @click="resetFilters">Reset</button>
     </div>
 
-    <!-- Cards -->
     <div
       v-for="item in pagedItems"
       :key="item.id"
@@ -60,44 +58,34 @@
       No results found.
     </div>
 
-    <!-- Pagination Bar -->
     <div v-if="totalPages > 1" class="alc-pagination">
       <button
         class="alc-page-btn"
         :class="{ 'alc-page-btn--disabled': currentPage === 1 }"
         :disabled="currentPage === 1"
         @click="goToPage(1)"
-        title="First page"
       >&#10094;&#10094;</button>
-
       <button
         class="alc-page-btn"
         :class="{ 'alc-page-btn--disabled': currentPage === 1 }"
         :disabled="currentPage === 1"
         @click="goToPage(currentPage - 1)"
-        title="Previous page"
       >&#10094;</button>
-
       <span class="alc-page-info">Page {{ currentPage }} of {{ totalPages }}</span>
-
       <button
         class="alc-page-btn"
         :class="{ 'alc-page-btn--disabled': currentPage === totalPages }"
         :disabled="currentPage === totalPages"
         @click="goToPage(currentPage + 1)"
-        title="Next page"
       >&#10095;</button>
-
       <button
         class="alc-page-btn"
         :class="{ 'alc-page-btn--disabled': currentPage === totalPages }"
         :disabled="currentPage === totalPages"
         @click="goToPage(totalPages)"
-        title="Last page"
       >&#10095;&#10095;</button>
     </div>
 
-    <!-- Record count -->
     <div class="alc-count">
       {{ filteredItems.length === allItems.length
         ? allItems.length + ' records'
@@ -109,149 +97,6 @@
 
 <script>
 import { computed, ref, watch } from 'vue';
-
-// ─── Action label map (module-level, never causes build issues) ───────────────
-const ACTION_LABELS = {
-  'internal_upload': 'File uploaded',
-  'files.create': 'File uploaded',
-  'files.update': 'File updated',
-  'files.delete': 'File deleted',
-  'files.delete_everywhere': 'File deleted',
-  'scans.consume': 'File scanned',
-  'ai_enrich.text': 'AI enrichment run',
-  'ai_enrich.persist': 'AI enrichment saved',
-  'folders.create': 'Folder created',
-  'folders.update': 'Folder updated',
-  'folders.delete': 'Folder deleted',
-  'folders.delete_everywhere': 'Folder deleted',
-  'upload_portals.create': 'Upload portal created',
-  'upload_portals.update': 'Upload portal updated',
-  'upload_portals.delete': 'Upload portal deleted',
-  'upload_portals.link': 'Upload portal link copied',
-  'upload_portals.toggle': 'Upload portal toggled',
-  'upload_portals.share': 'Upload portal shared',
-  'public_upload': 'File received',
-  'public_upload_notification_sent': 'Upload notification sent',
-  'public_portals.unlock': 'Portal PIN unlock',
-  'invites.create': 'Team member invited',
-  'invites.delete': 'Invite removed',
-  'invites.resend': 'Invite resent',
-  'invites.accept': 'Invite accepted',
-  'tenant.members.update_status': 'Member status updated',
-  'tenant.account_update': 'Account name updated',
-  'tenant.account_logo_upload': 'Account logo updated',
-  'tenant.branding.update': 'Branding updated',
-  'tenant.branding_logo_upload': 'Public portal logo updated',
-  'tenant.branding.logo_upload': 'Branding logo updated',
-  'tenant.transfer_ownership': 'Ownership transferred',
-  'tenant.delete_request': 'Account deletion requested',
-  'auth.profile_update': 'Profile updated',
-};
-
-const resolveActionLabel = (raw) => {
-  if (!raw) return '';
-  return ACTION_LABELS[raw] || raw;
-};
-
-// ─── Target resolver (module-level) ──────────────────────────────────────────
-const resolveTarget = (meta) => {
-  if (meta === null || meta === undefined) return '';
-  if (typeof meta !== 'object' || Array.isArray(meta)) return typeof meta === 'string' ? meta : '';
-
-  // Member status: { from, to } both strings
-  if (typeof meta.from === 'string' && typeof meta.to === 'string') {
-    return meta.from + ' \u2192 ' + meta.to;
-  }
-
-  // Share targets: { to: [...] }
-  if (Array.isArray(meta.to)) return meta.to.join(', ');
-
-  // Upload notification recipients
-  if (Array.isArray(meta.recipients)) return meta.recipients.join(', ');
-
-  // Profile update: { updated_fields: [...] }
-  if (Array.isArray(meta.updated_fields)) return meta.updated_fields.join(', ');
-
-  // Legacy account name update: { changed: [...] }
-  if (Array.isArray(meta.changed)) {
-    return meta.changed.filter((v) => v !== null && v !== undefined).join(' \u2192 ');
-  }
-
-  // Folder update: { updated: { name } }
-  if (meta.updated && typeof meta.updated === 'object' && !Array.isArray(meta.updated) && meta.updated.name) {
-    return meta.updated.name + '';
-  }
-
-  // Account logo upload: { company_logo_url }
-  if (typeof meta.company_logo_url === 'string') {
-    return meta.company_logo_url.split('/').pop().split('..')[0];
-  }
-
-  // Upload portal toggle: { is_enabled }
-  if (typeof meta.is_enabled === 'boolean') {
-    return meta.is_enabled ? 'Enabled' : 'Disabled';
-  }
-
-  // Named field priority chain
-  const priorityKeys = [
-    'brand_name', 'name', 'filename', 'uploader_name',
-    'email', 'uploader_email', 'portal_slug', 'slug', 'canonical_url',
-  ];
-  for (let k = 0; k < priorityKeys.length; k++) {
-    const v = meta[priorityKeys[k]];
-    if (v !== null && v !== undefined) {
-      if (typeof v === 'string' && (v.indexOf('http://') === 0 || v.indexOf('https://') === 0)) return '';
-      return v + '';
-    }
-  }
-
-  // Last resort: first string value, suppress URLs
-  const keys = Object.keys(meta);
-  if (keys.length > 0) {
-    const first = meta[keys[0]];
-    if (typeof first === 'string' && first.indexOf('http://') !== 0 && first.indexOf('https://') !== 0) {
-      return first;
-    }
-  }
-
-  return '';
-};
-
-// ─── User display resolver (module-level) ─────────────────────────────────────
-const resolveUserDisplay = (userId, members) => {
-  if (!Array.isArray(members) || members.length === 0) {
-    return userId != null ? userId + '' : '';
-  }
-  if (userId === null || userId === undefined) return '';
-
-  let match = null;
-  for (let i = 0; i < members.length; i++) {
-    const m = members[i];
-    if (m && (m.user_id === userId || m.user_id === parseInt(userId, 10))) {
-      match = m;
-      break;
-    }
-  }
-
-  if (!match) return userId + '';
-  if (match.first_name != null && match.first_name !== '') {
-    return (match.first_name || '') + ' ' + (match.last_name || '') + ' (' + (match.email || '') + ')';
-  }
-  return match.email || (userId + '');
-};
-
-// ─── Date formatter (module-level) ────────────────────────────────────────────
-const formatDate = (ts) => {
-  if (!ts) return '';
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return ts + '';
-  const yyyy = d.getFullYear();
-  const mm = ('0' + (d.getMonth() + 1)).slice(-2);
-  const dd = ('0' + d.getDate()).slice(-2);
-  const hh = ('0' + d.getHours()).slice(-2);
-  const min = ('0' + d.getMinutes()).slice(-2);
-  return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min;
-};
 
 export default {
   props: {
@@ -268,7 +113,6 @@ export default {
     const isEditing = computed(() => props.wwEditorState && props.wwEditorState.isEditing);
     /* wwEditor:end */
 
-    // ─── Internal variables ─────────────────────────────────────────
     const { value: selectedItem, setValue: setSelectedItem } = wwLib.wwVariable.useComponentVariable({
       uid: props.uid,
       name: 'selectedItem',
@@ -304,108 +148,168 @@ export default {
       defaultValue: 1,
     });
 
-    // ─── Hover / active state (required pattern) ────────────────────
     const hoverState = ref({});
     const activeState = ref({});
-
     const setHover = (id, val) => { hoverState.value = Object.assign({}, hoverState.value, { [id]: val }); };
     const setActive = (id, val) => { activeState.value = Object.assign({}, activeState.value, { [id]: val }); };
-
     const getOpenButtonStyle = (id) => {
       const isHovered = hoverState.value[id + '_open'] || false;
       const isActive = activeState.value[id + '_open'] || false;
-      return {
-        backgroundColor: isActive ? '#1a4731' : (isHovered ? '#245a3f' : '#2d6a4f'),
-        color: '#fff',
-        border: 'none',
-      };
+      return { backgroundColor: isActive ? '#1a4731' : (isHovered ? '#245a3f' : '#2d6a4f'), color: '#fff', border: 'none' };
     };
-
     const getEditButtonStyle = (id) => {
       const isHovered = hoverState.value[id + '_edit'] || false;
       const isActive = activeState.value[id + '_edit'] || false;
-      return {
-        backgroundColor: isActive ? '#e8f5ef' : (isHovered ? '#f0faf4' : 'transparent'),
-        color: '#2d6a4f',
-        border: '1.5px solid #2d6a4f',
-      };
+      return { backgroundColor: isActive ? '#e8f5ef' : (isHovered ? '#f0faf4' : 'transparent'), color: '#2d6a4f', border: '1.5px solid #2d6a4f' };
     };
 
-    // ─── Filter + pagination state ──────────────────────────────────
     const searchText = ref('');
     const actionFilter = ref('');
     const currentPage = ref(1);
 
-    const onSearchInput = (val) => {
-      searchText.value = val;
-      currentPage.value = 1;
+    const onSearchInput = (val) => { searchText.value = val; currentPage.value = 1; };
+    const onActionChange = (val) => { actionFilter.value = val; currentPage.value = 1; };
+    const resetFilters = () => { searchText.value = ''; actionFilter.value = ''; currentPage.value = 1; };
+
+    const getActionLabel = (raw) => {
+      if (!raw) return '';
+      const map = {
+        'internal_upload': 'File uploaded',
+        'files.create': 'File uploaded',
+        'files.update': 'File updated',
+        'files.delete': 'File deleted',
+        'files.delete_everywhere': 'File deleted',
+        'scans.consume': 'File scanned',
+        'ai_enrich.text': 'AI enrichment run',
+        'ai_enrich.persist': 'AI enrichment saved',
+        'folders.create': 'Folder created',
+        'folders.update': 'Folder updated',
+        'folders.delete': 'Folder deleted',
+        'folders.delete_everywhere': 'Folder deleted',
+        'upload_portals.create': 'Upload portal created',
+        'upload_portals.update': 'Upload portal updated',
+        'upload_portals.delete': 'Upload portal deleted',
+        'upload_portals.link': 'Upload portal link copied',
+        'upload_portals.toggle': 'Upload portal toggled',
+        'upload_portals.share': 'Upload portal shared',
+        'public_upload': 'File received',
+        'public_upload_notification_sent': 'Upload notification sent',
+        'public_portals.unlock': 'Portal PIN unlock',
+        'invites.create': 'Team member invited',
+        'invites.delete': 'Invite removed',
+        'invites.resend': 'Invite resent',
+        'invites.accept': 'Invite accepted',
+        'tenant.members.update_status': 'Member status updated',
+        'tenant.account_update': 'Account name updated',
+        'tenant.account_logo_upload': 'Account logo updated',
+        'tenant.branding.update': 'Branding updated',
+        'tenant.branding_logo_upload': 'Public portal logo updated',
+        'tenant.branding.logo_upload': 'Branding logo updated',
+        'tenant.transfer_ownership': 'Ownership transferred',
+        'tenant.delete_request': 'Account deletion requested',
+        'auth.profile_update': 'Profile updated',
+      };
+      return map[raw] || raw;
     };
 
-    const onActionChange = (val) => {
-      actionFilter.value = val;
-      currentPage.value = 1;
+    const getTargetDisplay = (meta) => {
+      if (meta === null || meta === undefined) return '';
+      if (typeof meta !== 'object' || Array.isArray(meta)) return '';
+      if (typeof meta.from === 'string' && typeof meta.to === 'string') return meta.from + ' > ' + meta.to;
+      if (Array.isArray(meta.to)) return meta.to.join(', ');
+      if (Array.isArray(meta.recipients)) return meta.recipients.join(', ');
+      if (Array.isArray(meta.updated_fields)) return meta.updated_fields.join(', ');
+      if (Array.isArray(meta.changed)) return meta.changed.filter((v) => v !== null && v !== undefined).join(' > ');
+      if (meta.updated && typeof meta.updated === 'object' && !Array.isArray(meta.updated) && meta.updated.name) return meta.updated.name + '';
+      if (typeof meta.company_logo_url === 'string') return meta.company_logo_url.split('/').pop().split('..')[0];
+      if (typeof meta.is_enabled === 'boolean') return meta.is_enabled ? 'Enabled' : 'Disabled';
+      const pKeys = ['brand_name', 'name', 'filename', 'uploader_name', 'email', 'uploader_email', 'portal_slug', 'slug', 'canonical_url'];
+      for (const k of pKeys) {
+        const v = meta[k];
+        if (v !== null && v !== undefined) {
+          if (typeof v === 'string' && (v.indexOf('http://') === 0 || v.indexOf('https://') === 0)) return '';
+          return v + '';
+        }
+      }
+      const allKeys = Object.keys(meta);
+      if (allKeys.length > 0) {
+        const first = meta[allKeys[0]];
+        if (typeof first === 'string' && first.indexOf('http://') !== 0 && first.indexOf('https://') !== 0) return first;
+      }
+      return '';
     };
 
-    const resetFilters = () => {
-      searchText.value = '';
-      actionFilter.value = '';
-      currentPage.value = 1;
+    const getUserDisplay = (userId, members) => {
+      if (!Array.isArray(members) || members.length === 0) return userId != null ? userId + '' : '';
+      if (userId === null || userId === undefined) return '';
+      let match = null;
+      for (const m of members) {
+        if (m && (m.user_id === userId || m.user_id === parseInt(userId, 10))) { match = m; break; }
+      }
+      if (!match) return userId + '';
+      if (match.first_name != null && match.first_name !== '') {
+        return (match.first_name || '') + ' ' + (match.last_name || '') + ' (' + (match.email || '') + ')';
+      }
+      return match.email || (userId + '');
     };
 
-    // ─── All items resolved ─────────────────────────────────────────
+    const formatDate = (ts) => {
+      if (!ts) return '';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return ts + '';
+      const yyyy = d.getFullYear();
+      const mm = ('0' + (d.getMonth() + 1)).slice(-2);
+      const dd = ('0' + d.getDate()).slice(-2);
+      const hh = ('0' + d.getHours()).slice(-2);
+      const min = ('0' + d.getMinutes()).slice(-2);
+      return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min;
+    };
+
     const allItems = computed(() => {
       const items = props.content && props.content.data ? props.content.data : [];
       if (!Array.isArray(items)) return [];
-
       const members = props.content && Array.isArray(props.content.members) ? props.content.members : [];
-
-      // useFormula called once at top of computed, not inside loop
       const { resolveMappingFormula } = wwLib.wwFormula.useFormula();
-
       return items.map((item) => {
         if (!item) return null;
         const id = resolveMappingFormula(props.content && props.content.dataIdFormula, item) || item.id || '';
         const rawAction = resolveMappingFormula(props.content && props.content.dataNameFormula, item) || item.action || '';
-
         return {
           id: id,
           created_at: item.created_at || '',
           formattedDate: formatDate(item.created_at || ''),
           tenant_id: item.tenant_id || '',
           user_id: item.user_id != null ? item.user_id : '',
-          userDisplay: resolveUserDisplay(item.user_id, members),
+          userDisplay: getUserDisplay(item.user_id, members),
           action: rawAction,
-          actionLabel: resolveActionLabel(rawAction),
+          actionLabel: getActionLabel(rawAction),
           target_type: item.target_type || '',
-          targetDisplay: resolveTarget(item.meta != null ? item.meta : null),
+          targetDisplay: getTargetDisplay(item.meta != null ? item.meta : null),
           meta: item.meta != null ? item.meta : null,
           _raw: item,
         };
       }).filter((item) => item !== null);
     });
 
-    // ─── Unique actions for dropdown ────────────────────────────────
     const uniqueActions = computed(() => {
       const seen = {};
       const result = [];
       const items = allItems.value;
-      for (let i = 0; i < items.length; i++) {
-        const raw = items[i].action || '';
+      for (const item of items) {
+        const raw = item.action || '';
         if (raw && !seen[raw]) {
           seen[raw] = true;
-          result.push({ raw: raw, label: resolveActionLabel(raw) });
+          result.push({ raw: raw, label: getActionLabel(raw) });
         }
       }
       result.sort((a, b) => a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
       return result;
     });
 
-    // ─── Filtered (all pages) ───────────────────────────────────────
     const filteredItems = computed(() => {
       const items = allItems.value;
       const search = (searchText.value || '').toLowerCase();
       const actionVal = actionFilter.value || '';
-
       return items.filter((item) => {
         const matchSearch = !search ||
           (item.formattedDate || '').toLowerCase().indexOf(search) !== -1 ||
@@ -414,14 +318,11 @@ export default {
           (item.action || '').toLowerCase().indexOf(search) !== -1 ||
           (item.targetDisplay || '').toLowerCase().indexOf(search) !== -1 ||
           (item.target_type || '').toLowerCase().indexOf(search) !== -1;
-
         const matchAction = !actionVal || item.action === actionVal;
-
         return matchSearch && matchAction;
       });
     });
 
-    // ─── Pagination ─────────────────────────────────────────────────
     const resolvedPageSize = computed(() => {
       const ps = props.content && props.content.pageSize ? parseInt(props.content.pageSize, 10) : 25;
       return ps > 0 ? ps : 25;
@@ -453,32 +354,21 @@ export default {
       currentPage.value = clamped;
       emit('trigger-event', {
         name: 'page-change',
-        event: {
-          page: clamped,
-          pageSize: resolvedPageSize.value,
-          offset: (clamped - 1) * resolvedPageSize.value,
-        },
+        event: { page: clamped, pageSize: resolvedPageSize.value, offset: (clamped - 1) * resolvedPageSize.value },
       });
     };
 
-    // ─── Sync internal variables ────────────────────────────────────
     watch(allItems, (val) => { setItemCount(val.length); }, { immediate: true });
     watch(filteredItems, (val) => { setFilteredCount(val.length); }, { immediate: true });
     watch(safePage, (val) => { setCurrentPageVar(val); }, { immediate: true });
     watch(totalPages, (val) => {
       setTotalPagesVar(val);
-      if (currentPage.value > val) {
-        currentPage.value = val > 0 ? val : 1;
-      }
+      if (currentPage.value > val) currentPage.value = val > 0 ? val : 1;
     }, { immediate: true });
 
-    // ─── Row click ──────────────────────────────────────────────────
     const handleRowClick = (item) => {
       setSelectedItem(item._raw || item);
-      emit('trigger-event', {
-        name: 'row-click',
-        event: { row: item._raw || item },
-      });
+      emit('trigger-event', { name: 'row-click', event: { row: item._raw || item } });
     };
 
     return {
