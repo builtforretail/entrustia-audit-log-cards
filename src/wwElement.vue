@@ -23,7 +23,7 @@
       <div class="alc-select-wrap">
         <select class="alc-select" :value="actionFilter" @change="onActionChange($event.target.value)">
           <option value="">All Actions</option>
-          <option v-for="action in uniqueActions" :key="action" :value="action">{{ action }}</option>
+          <option v-for="action in uniqueActions" :key="action.raw" :value="action.raw">{{ action.label }}</option>
         </select>
         <button v-if="actionFilter" class="alc-clear-btn alc-clear-select" @click="onActionChange('')">&#x2715;</button>
       </div>
@@ -44,15 +44,15 @@
       </div>
       <div class="alc-row">
         <span class="alc-label">User</span>
-        <span class="alc-value">{{ item.user_id }}</span>
+        <span class="alc-value">{{ item.userDisplay }}</span>
       </div>
       <div class="alc-row">
         <span class="alc-label">Action</span>
-        <span class="alc-value">{{ item.action }}</span>
+        <span class="alc-value">{{ item.actionLabel }}</span>
       </div>
       <div class="alc-row">
         <span class="alc-label">Target</span>
-        <span class="alc-value">{{ item.target_type }}</span>
+        <span class="alc-value">{{ item.targetDisplay }}</span>
       </div>
     </div>
 
@@ -127,7 +127,7 @@ export default {
     const isEditing = computed(() => props.wwEditorState && props.wwEditorState.isEditing);
     /* wwEditor:end */
 
-    // Internal variables
+    // ─── Internal variables ───────────────────────────────────────────
     const { value: selectedItem, setValue: setSelectedItem } = wwLib.wwVariable.useComponentVariable({
       uid: props.uid,
       name: 'selectedItem',
@@ -163,7 +163,7 @@ export default {
       defaultValue: 1,
     });
 
-    // Hover / active state refs (required pattern)
+    // ─── Hover / active state (required pattern) ──────────────────────
     const hoverState = ref({});
     const activeState = ref({});
 
@@ -190,12 +190,142 @@ export default {
       };
     };
 
-    // Filter + pagination state
+    // ─── Action label map ─────────────────────────────────────────────
+    const ACTION_LABELS = {
+      'internal_upload': 'File uploaded',
+      'files.create': 'File uploaded',
+      'files.update': 'File updated',
+      'files.delete': 'File deleted',
+      'files.delete_everywhere': 'File deleted',
+      'scans.consume': 'File scanned',
+      'ai_enrich.text': 'AI enrichment run',
+      'ai_enrich.persist': 'AI enrichment saved',
+      'folders.create': 'Folder created',
+      'folders.update': 'Folder updated',
+      'folders.delete': 'Folder deleted',
+      'folders.delete_everywhere': 'Folder deleted',
+      'upload_portals.create': 'Upload portal created',
+      'upload_portals.update': 'Upload portal updated',
+      'upload_portals.delete': 'Upload portal deleted',
+      'upload_portals.link': 'Upload portal link copied',
+      'upload_portals.toggle': 'Upload portal toggled',
+      'upload_portals.share': 'Upload portal shared',
+      'public_upload': 'File received',
+      'public_upload_notification_sent': 'Upload notification sent',
+      'public_portals.unlock': 'Portal PIN unlock',
+      'invites.create': 'Team member invited',
+      'invites.delete': 'Invite removed',
+      'invites.resend': 'Invite resent',
+      'invites.accept': 'Invite accepted',
+      'tenant.members.update_status': 'Member status updated',
+      'tenant.account_update': 'Account name updated',
+      'tenant.account_logo_upload': 'Account logo updated',
+      'tenant.branding.update': 'Branding updated',
+      'tenant.branding_logo_upload': 'Public portal logo updated',
+      'tenant.branding.logo_upload': 'Branding logo updated',
+      'tenant.transfer_ownership': 'Ownership transferred',
+      'tenant.delete_request': 'Account deletion requested',
+      'auth.profile_update': 'Profile updated',
+    };
+
+    const resolveActionLabel = (raw) => {
+      if (!raw) return '';
+      return ACTION_LABELS[raw] || raw;
+    };
+
+    // ─── Target resolver (mirrors the datagrid Custom JS) ─────────────
+    // context.mapping in the datagrid = item.meta here
+    const resolveTarget = (meta) => {
+      if (!meta) return null;
+      if (typeof meta === 'string') return meta;
+
+      // Member status: { from, to } where both are plain strings
+      if (meta.to && meta.from && !Array.isArray(meta.to)) {
+        return meta.from + ' \u2192 ' + meta.to;
+      }
+
+      // Share targets: { to: [...] }
+      if (Array.isArray(meta.to)) return meta.to.join(', ');
+
+      // Upload notification recipients: { recipients: [...] }
+      if (Array.isArray(meta.recipients)) return meta.recipients.join(', ');
+
+      // Profile update: { updated_fields: [...] }
+      if (Array.isArray(meta.updated_fields)) return meta.updated_fields.join(', ');
+
+      // Legacy account name update: { changed: [...] }
+      if (Array.isArray(meta.changed)) {
+        return meta.changed.filter(function(v) { return v !== null; }).join(' \u2192 ');
+      }
+
+      // Folder update: { updated: { name, ... } }
+      if (meta.updated && meta.updated.name) return meta.updated.name;
+
+      // Account logo upload: { company_logo_url }
+      if (meta.company_logo_url) {
+        return meta.company_logo_url.split('/').pop().split('..')[0];
+      }
+
+      // Upload portal toggle: { is_enabled }
+      if ('is_enabled' in meta) return meta.is_enabled ? 'Enabled' : 'Disabled';
+
+      // Named field priority chain
+      var value = meta.brand_name != null ? meta.brand_name
+        : meta.name != null ? meta.name
+        : meta.filename != null ? meta.filename
+        : meta.uploader_name != null ? meta.uploader_name
+        : meta.email != null ? meta.email
+        : meta.uploader_email != null ? meta.uploader_email
+        : meta.portal_slug != null ? meta.portal_slug
+        : meta.slug != null ? meta.slug
+        : meta.canonical_url != null ? meta.canonical_url
+        : null;
+
+      if (value !== null) {
+        if (typeof value === 'string' && (value.indexOf('http://') === 0 || value.indexOf('https://') === 0)) return null;
+        return value;
+      }
+
+      // Last resort: first string value in object, suppress URLs
+      var keys = Object.keys(meta);
+      for (var i = 0; i < keys.length; i++) {
+        var firstValue = meta[keys[i]];
+        if (typeof firstValue !== 'string') return null;
+        if (firstValue.indexOf('http://') === 0 || firstValue.indexOf('https://') === 0) return null;
+        return firstValue;
+      }
+
+      return null;
+    };
+
+    // ─── User lookup helper ───────────────────────────────────────────
+    const resolveUserDisplay = (userId, members) => {
+      if (!Array.isArray(members) || members.length === 0) {
+        return userId != null ? userId + '' : '';
+      }
+      if (userId === null || userId === undefined) return '';
+
+      var match = null;
+      for (var i = 0; i < members.length; i++) {
+        if (members[i] && (members[i].user_id === userId || members[i].user_id === parseInt(userId, 10))) {
+          match = members[i];
+          break;
+        }
+      }
+
+      if (!match) return userId + '';
+
+      if (match.first_name != null && match.first_name !== '') {
+        return (match.first_name || '') + ' ' + (match.last_name || '') + ' (' + (match.email || '') + ')';
+      }
+      return match.email || (userId + '');
+    };
+
+    // ─── Filter + pagination state ────────────────────────────────────
     const searchText = ref('');
     const actionFilter = ref('');
     const currentPage = ref(1);
 
-    // Reset page to 1 when filters change
     const onSearchInput = (val) => {
       searchText.value = val;
       currentPage.value = 1;
@@ -212,29 +342,33 @@ export default {
       currentPage.value = 1;
     };
 
-    // Format date helper
+    // ─── Date formatter ───────────────────────────────────────────────
     const formatDate = (ts) => {
       if (!ts) return '';
-      const d = new Date(ts);
+      var d = new Date(ts);
       if (isNaN(d.getTime())) return ts + '';
-      const yyyy = d.getFullYear();
-      const mm = ('0' + (d.getMonth() + 1)).slice(-2);
-      const dd = ('0' + d.getDate()).slice(-2);
-      const hh = ('0' + d.getHours()).slice(-2);
-      const min = ('0' + d.getMinutes()).slice(-2);
+      var yyyy = d.getFullYear();
+      var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+      var dd = ('0' + d.getDate()).slice(-2);
+      var hh = ('0' + d.getHours()).slice(-2);
+      var min = ('0' + d.getMinutes()).slice(-2);
       return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min;
     };
 
-    // All items resolved
+    // ─── All items resolved ───────────────────────────────────────────
     const allItems = computed(() => {
       const items = props.content && props.content.data ? props.content.data : [];
       if (!Array.isArray(items)) return [];
 
+      const members = props.content && props.content.members ? props.content.members : [];
       const { resolveMappingFormula } = wwLib.wwFormula.useFormula();
 
       return items.map((item) => {
         const id = resolveMappingFormula(props.content && props.content.dataIdFormula, item) || item.id || '';
-        const action = resolveMappingFormula(props.content && props.content.dataNameFormula, item) || item.action || '';
+        const rawAction = resolveMappingFormula(props.content && props.content.dataNameFormula, item) || item.action || '';
+        const actionLabel = resolveActionLabel(rawAction);
+        const userDisplay = resolveUserDisplay(item.user_id, members);
+        const targetDisplay = resolveTarget(item.meta) || item.target_type || '';
 
         return {
           id: id,
@@ -242,32 +376,36 @@ export default {
           formattedDate: formatDate(item.created_at || ''),
           tenant_id: item.tenant_id || '',
           user_id: item.user_id || '',
-          action: action,
+          userDisplay: userDisplay,
+          action: rawAction,
+          actionLabel: actionLabel,
           target_type: item.target_type || '',
-          target_id: item.target_id || '',
+          targetDisplay: targetDisplay,
           meta: item.meta || null,
           _raw: item,
         };
       });
     });
 
-    // Unique action values for dropdown
+    // ─── Unique actions for dropdown ──────────────────────────────────
     const uniqueActions = computed(() => {
       const seen = {};
       const result = [];
       const items = allItems.value;
-      for (let i = 0; i < items.length; i++) {
-        const a = items[i].action || '';
-        if (a && !seen[a]) {
-          seen[a] = true;
-          result.push(a);
+      for (var i = 0; i < items.length; i++) {
+        var raw = items[i].action || '';
+        if (raw && !seen[raw]) {
+          seen[raw] = true;
+          result.push({ raw: raw, label: resolveActionLabel(raw) });
         }
       }
-      result.sort();
+      result.sort(function(a, b) {
+        return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
+      });
       return result;
     });
 
-    // Filtered (all pages)
+    // ─── Filtered (all pages) ─────────────────────────────────────────
     const filteredItems = computed(() => {
       const items = allItems.value;
       const search = (searchText.value || '').toLowerCase();
@@ -276,8 +414,10 @@ export default {
       return items.filter((item) => {
         const matchSearch = !search ||
           (item.formattedDate || '').toLowerCase().indexOf(search) !== -1 ||
-          (item.user_id + '').toLowerCase().indexOf(search) !== -1 ||
+          (item.userDisplay || '').toLowerCase().indexOf(search) !== -1 ||
+          (item.actionLabel || '').toLowerCase().indexOf(search) !== -1 ||
           (item.action || '').toLowerCase().indexOf(search) !== -1 ||
+          (item.targetDisplay || '').toLowerCase().indexOf(search) !== -1 ||
           (item.target_type || '').toLowerCase().indexOf(search) !== -1;
 
         const matchAction = !actionVal || item.action === actionVal;
@@ -286,7 +426,7 @@ export default {
       });
     });
 
-    // Pagination derived values
+    // ─── Pagination ───────────────────────────────────────────────────
     const resolvedPageSize = computed(() => {
       const ps = props.content && props.content.pageSize ? parseInt(props.content.pageSize, 10) : 25;
       return ps > 0 ? ps : 25;
@@ -298,7 +438,6 @@ export default {
       return Math.ceil(total / resolvedPageSize.value);
     });
 
-    // Current page clamped to valid range
     const safePage = computed(() => {
       const tp = totalPages.value;
       const cp = currentPage.value;
@@ -307,7 +446,6 @@ export default {
       return cp;
     });
 
-    // Slice for current page
     const pagedItems = computed(() => {
       const start = (safePage.value - 1) * resolvedPageSize.value;
       const end = start + resolvedPageSize.value;
@@ -318,39 +456,28 @@ export default {
       const tp = totalPages.value;
       const clamped = page < 1 ? 1 : (page > tp ? tp : page);
       currentPage.value = clamped;
-
-      const offset = (clamped - 1) * resolvedPageSize.value;
       emit('trigger-event', {
         name: 'page-change',
         event: {
           page: clamped,
           pageSize: resolvedPageSize.value,
-          offset: offset,
+          offset: (clamped - 1) * resolvedPageSize.value,
         },
       });
     };
 
-    // Sync internal variables
-    watch(allItems, (val) => {
-      setItemCount(val.length);
-    }, { immediate: true });
-
-    watch(filteredItems, (val) => {
-      setFilteredCount(val.length);
-    }, { immediate: true });
-
-    watch(safePage, (val) => {
-      setCurrentPageVar(val);
-    }, { immediate: true });
-
+    // ─── Sync internal variables ──────────────────────────────────────
+    watch(allItems, (val) => { setItemCount(val.length); }, { immediate: true });
+    watch(filteredItems, (val) => { setFilteredCount(val.length); }, { immediate: true });
+    watch(safePage, (val) => { setCurrentPageVar(val); }, { immediate: true });
     watch(totalPages, (val) => {
       setTotalPagesVar(val);
-      // If current page is now out of range, clamp it
       if (currentPage.value > val) {
         currentPage.value = val > 0 ? val : 1;
       }
     }, { immediate: true });
 
+    // ─── Row click ────────────────────────────────────────────────────
     const handleRowClick = (item) => {
       setSelectedItem(item._raw || item);
       emit('trigger-event', {
