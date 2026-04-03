@@ -90,34 +90,6 @@ export default {
       hidden: (content, sidepanelContent, boundProps) =>
         !Array.isArray(content.data) || !content.data.length || !boundProps.data,
     },
-    dataUserFormula: {
-      label: { en: 'User Field' },
-      type: 'Formula',
-      section: 'settings',
-      options: content => ({
-        template: Array.isArray(content.data) && content.data.length > 0 ? content.data[0] : null,
-      }),
-      defaultValue: {
-        type: 'f',
-        code: "context.mapping?.['user_id']",
-      },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.data) || !content.data.length || !boundProps.data,
-    },
-    dataTargetFormula: {
-      label: { en: 'Target Field' },
-      type: 'Formula',
-      section: 'settings',
-      options: content => ({
-        template: Array.isArray(content.data) && content.data.length > 0 ? content.data[0] : null,
-      }),
-      defaultValue: {
-        type: 'f',
-        code: "context.mapping?.['target_type']",
-      },
-      hidden: (content, sidepanelContent, boundProps) =>
-        !Array.isArray(content.data) || !content.data.length || !boundProps.data,
-    },
     dataActionFormula: {
       label: { en: 'Action Filter Field' },
       type: 'Formula',
