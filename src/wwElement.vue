@@ -42,7 +42,7 @@
       </div>
       <div class="alc-row">
         <span class="alc-label">User</span>
-        <span class="alc-value">{{ item.userDisplay }}</span>
+        <span class="alc-value">{{ item.user_id }}</span>
       </div>
       <div class="alc-row">
         <span class="alc-label">Action</span>
@@ -50,7 +50,7 @@
       </div>
       <div class="alc-row">
         <span class="alc-label">Target</span>
-        <span class="alc-value">{{ item.targetDisplay }}</span>
+        <span class="alc-value">{{ item.target_type }}</span>
       </div>
     </div>
 
@@ -173,84 +173,41 @@ export default {
 
     const getActionLabel = (raw) => {
       if (!raw) return '';
-      const map = {
-        'internal_upload': 'File uploaded',
-        'files.create': 'File uploaded',
-        'files.update': 'File updated',
-        'files.delete': 'File deleted',
-        'files.delete_everywhere': 'File deleted',
-        'scans.consume': 'File scanned',
-        'ai_enrich.text': 'AI enrichment run',
-        'ai_enrich.persist': 'AI enrichment saved',
-        'folders.create': 'Folder created',
-        'folders.update': 'Folder updated',
-        'folders.delete': 'Folder deleted',
-        'folders.delete_everywhere': 'Folder deleted',
-        'upload_portals.create': 'Upload portal created',
-        'upload_portals.update': 'Upload portal updated',
-        'upload_portals.delete': 'Upload portal deleted',
-        'upload_portals.link': 'Upload portal link copied',
-        'upload_portals.toggle': 'Upload portal toggled',
-        'upload_portals.share': 'Upload portal shared',
-        'public_upload': 'File received',
-        'public_upload_notification_sent': 'Upload notification sent',
-        'public_portals.unlock': 'Portal PIN unlock',
-        'invites.create': 'Team member invited',
-        'invites.delete': 'Invite removed',
-        'invites.resend': 'Invite resent',
-        'invites.accept': 'Invite accepted',
-        'tenant.members.update_status': 'Member status updated',
-        'tenant.account_update': 'Account name updated',
-        'tenant.account_logo_upload': 'Account logo updated',
-        'tenant.branding.update': 'Branding updated',
-        'tenant.branding_logo_upload': 'Public portal logo updated',
-        'tenant.branding.logo_upload': 'Branding logo updated',
-        'tenant.transfer_ownership': 'Ownership transferred',
-        'tenant.delete_request': 'Account deletion requested',
-        'auth.profile_update': 'Profile updated',
-      };
-      return map[raw] || raw;
-    };
-
-    const getTargetDisplay = (meta) => {
-      if (meta === null || meta === undefined) return '';
-      if (typeof meta !== 'object' || Array.isArray(meta)) return '';
-      if (typeof meta.from === 'string' && typeof meta.to === 'string') return meta.from + ' > ' + meta.to;
-      if (Array.isArray(meta.to)) return meta.to.join(', ');
-      if (Array.isArray(meta.recipients)) return meta.recipients.join(', ');
-      if (Array.isArray(meta.updated_fields)) return meta.updated_fields.join(', ');
-      if (Array.isArray(meta.changed)) return meta.changed.filter((v) => v !== null && v !== undefined).join(' > ');
-      if (meta.updated && typeof meta.updated === 'object' && !Array.isArray(meta.updated) && meta.updated.name) return meta.updated.name + '';
-      if (typeof meta.company_logo_url === 'string') return meta.company_logo_url.split('/').pop().split('..')[0];
-      if (typeof meta.is_enabled === 'boolean') return meta.is_enabled ? 'Enabled' : 'Disabled';
-      const pKeys = ['brand_name', 'name', 'filename', 'uploader_name', 'email', 'uploader_email', 'portal_slug', 'slug', 'canonical_url'];
-      for (const k of pKeys) {
-        const v = meta[k];
-        if (v !== null && v !== undefined) {
-          if (typeof v === 'string' && (v.indexOf('http://') === 0 || v.indexOf('https://') === 0)) return '';
-          return v + '';
-        }
-      }
-      const allKeys = Object.keys(meta);
-      if (allKeys.length > 0) {
-        const first = meta[allKeys[0]];
-        if (typeof first === 'string' && first.indexOf('http://') !== 0 && first.indexOf('https://') !== 0) return first;
-      }
-      return '';
-    };
-
-    const getUserDisplay = (userId, members) => {
-      if (!Array.isArray(members) || members.length === 0) return userId != null ? userId + '' : '';
-      if (userId === null || userId === undefined) return '';
-      let match = null;
-      for (const m of members) {
-        if (m && (m.user_id === userId || m.user_id === parseInt(userId, 10))) { match = m; break; }
-      }
-      if (!match) return userId + '';
-      if (match.first_name != null && match.first_name !== '') {
-        return (match.first_name || '') + ' ' + (match.last_name || '') + ' (' + (match.email || '') + ')';
-      }
-      return match.email || (userId + '');
+      if (raw === 'internal_upload') return 'File uploaded';
+      if (raw === 'files.create') return 'File uploaded';
+      if (raw === 'files.update') return 'File updated';
+      if (raw === 'files.delete') return 'File deleted';
+      if (raw === 'files.delete_everywhere') return 'File deleted';
+      if (raw === 'scans.consume') return 'File scanned';
+      if (raw === 'ai_enrich.text') return 'AI enrichment run';
+      if (raw === 'ai_enrich.persist') return 'AI enrichment saved';
+      if (raw === 'folders.create') return 'Folder created';
+      if (raw === 'folders.update') return 'Folder updated';
+      if (raw === 'folders.delete') return 'Folder deleted';
+      if (raw === 'folders.delete_everywhere') return 'Folder deleted';
+      if (raw === 'upload_portals.create') return 'Upload portal created';
+      if (raw === 'upload_portals.update') return 'Upload portal updated';
+      if (raw === 'upload_portals.delete') return 'Upload portal deleted';
+      if (raw === 'upload_portals.link') return 'Upload portal link copied';
+      if (raw === 'upload_portals.toggle') return 'Upload portal toggled';
+      if (raw === 'upload_portals.share') return 'Upload portal shared';
+      if (raw === 'public_upload') return 'File received';
+      if (raw === 'public_upload_notification_sent') return 'Upload notification sent';
+      if (raw === 'public_portals.unlock') return 'Portal PIN unlock';
+      if (raw === 'invites.create') return 'Team member invited';
+      if (raw === 'invites.delete') return 'Invite removed';
+      if (raw === 'invites.resend') return 'Invite resent';
+      if (raw === 'invites.accept') return 'Invite accepted';
+      if (raw === 'tenant.members.update_status') return 'Member status updated';
+      if (raw === 'tenant.account_update') return 'Account name updated';
+      if (raw === 'tenant.account_logo_upload') return 'Account logo updated';
+      if (raw === 'tenant.branding.update') return 'Branding updated';
+      if (raw === 'tenant.branding_logo_upload') return 'Public portal logo updated';
+      if (raw === 'tenant.branding.logo_upload') return 'Branding logo updated';
+      if (raw === 'tenant.transfer_ownership') return 'Ownership transferred';
+      if (raw === 'tenant.delete_request') return 'Account deletion requested';
+      if (raw === 'auth.profile_update') return 'Profile updated';
+      return raw;
     };
 
     const formatDate = (ts) => {
@@ -268,10 +225,8 @@ export default {
     const allItems = computed(() => {
       const items = props.content && props.content.data ? props.content.data : [];
       if (!Array.isArray(items)) return [];
-      const members = props.content && Array.isArray(props.content.members) ? props.content.members : [];
       const { resolveMappingFormula } = wwLib.wwFormula.useFormula();
       return items.map((item) => {
-        if (!item) return null;
         const id = resolveMappingFormula(props.content && props.content.dataIdFormula, item) || item.id || '';
         const rawAction = resolveMappingFormula(props.content && props.content.dataNameFormula, item) || item.action || '';
         return {
@@ -279,16 +234,14 @@ export default {
           created_at: item.created_at || '',
           formattedDate: formatDate(item.created_at || ''),
           tenant_id: item.tenant_id || '',
-          user_id: item.user_id != null ? item.user_id : '',
-          userDisplay: getUserDisplay(item.user_id, members),
+          user_id: item.user_id || '',
           action: rawAction,
           actionLabel: getActionLabel(rawAction),
           target_type: item.target_type || '',
-          targetDisplay: getTargetDisplay(item.meta != null ? item.meta : null),
-          meta: item.meta != null ? item.meta : null,
+          meta: item.meta || null,
           _raw: item,
         };
-      }).filter((item) => item !== null);
+      });
     });
 
     const uniqueActions = computed(() => {
@@ -313,10 +266,9 @@ export default {
       return items.filter((item) => {
         const matchSearch = !search ||
           (item.formattedDate || '').toLowerCase().indexOf(search) !== -1 ||
-          (item.userDisplay || '').toLowerCase().indexOf(search) !== -1 ||
+          (item.user_id + '').toLowerCase().indexOf(search) !== -1 ||
           (item.actionLabel || '').toLowerCase().indexOf(search) !== -1 ||
           (item.action || '').toLowerCase().indexOf(search) !== -1 ||
-          (item.targetDisplay || '').toLowerCase().indexOf(search) !== -1 ||
           (item.target_type || '').toLowerCase().indexOf(search) !== -1;
         const matchAction = !actionVal || item.action === actionVal;
         return matchSearch && matchAction;
